@@ -1,9 +1,13 @@
 import pygame
 import random
 import sqlite3
+
+print()
+
+
 class Hero:
     def __init__(self, name, hp, type, att, ult, ult1, ult2):
-        print(name, name[:len(name) - 1])
+        self.level = int(name[-1])
         self.name = name[:len(name) - 1]
         self.standhp, self.hp = hp, hp
         self.type = type
@@ -18,8 +22,8 @@ class Hero:
                  "healtime": ["dopheal"]}
         return types[name]
 
-    def damage(self, dmg):  # Нанести урон этому персонажу
-        if self.type == "melee":
+    def damage(self, dmg, magic=False):  # Нанести урон этому персонажу
+        if self.type == "melee" and not magic:
             if random.randint(0, 4) > 2 and dmg > 0:
                 dmg -= 1
 
@@ -40,13 +44,13 @@ class Hero:
         if self.hp > self.standhp:
             self.hp = self.standhp
 
-    def get_att(self, att=0):  # Возращает нынешний урон обычной отакой
+    def get_att(self, att=0):  # Возращает нынешний урон обычной атакой
         att += self.att
         for i in self.buff:
             if "attake" in self.typebaff(i[0]):
                 att += i[1]
         if att < 1:
-            att = 0
+            att = 1
         return att
 
     def get_super(self, mega=0):  # пока что не трогаем
@@ -58,15 +62,20 @@ class Hero:
                          "shotgun": 1}
             return supertype[self.ult]
 
-    def get_image(self, prepiska=""): # Возращает картинку ( и нужную анимацию)
+    def get_image(self, prepiska=""):  # Возращает картинку ( и нужную анимацию)
         return "images\\" + self.name + prepiska + ".png"
 
     def stats(self):
         return [self.name, self.standhp, self.hp, self.get_att(), self.ult]
 
+    def checktimesbaff(self):
+        for i in self.buff:
+            if i[1] <= 0:
+                self.buff.remove(i)
+
 
 class Fight():
-    def __init__(self, plrs, enems, map="Plain", mapdeffect=[]):
+    def __init__(self, plrs, enems, map="Background", mapdeffect=[]):
         connection = sqlite3.connect('DOTAS.db')
         cursor = connection.cursor()
         self.map = map
@@ -74,7 +83,6 @@ class Fight():
         self.plrs = []
         for u in range(0, 3):
             if plrs[u] != None:
-                print(plrs[u])
                 self.plrs.append(Hero(*cursor.execute('SELECT * FROM heroes WHERE Name=?', (plrs[u],)).fetchone()))
             else:
                 self.plrs.append(None)
@@ -84,16 +92,41 @@ class Fight():
             if enems[u] != None:
                 self.enems.append(Hero(*cursor.execute('SELECT * FROM enemy WHERE Name=?', (enems[u],)).fetchone()))
             else:
-                self.plrs.append(None)
+                self.enems.append(None)
         connection.close()
-        # "start" "plr#" "enem#", "Vplr" "Venem" "Vall", "end"
-        self.phase = ["start", None]
+        self.phase = "startgame"  # "startgame" = "startr" "endr" "plr" "enem", "Vplr" "Venem" "Vall", "endloop"
+        self.whomove = 0  # 1-plr1 2-enem1 3-plr2 ...
+        self.getplr = 0
+        self.getenem = 0
+        self.heroplay = 1
+        self.point = []
+        self.wait = 0
+        self.getgold = 0
+        self.whywait = None
+        self.buttonattacke = False
+        self.mana = 0
+        self.end = False
+
+    def clicked(self, who):
+        print(self.get_players(), self.get_enemyes())
+        if self.buttonattacke:
+            if self.plrs[self.getplr - 1].name == "BountyHunter":
+                self.getgold += 11
+            self.enems[who].damage(self.plrs[self.getplr - 1].get_att())
+            print(who)
+            self.loop()
+        else:
+            pass
+        self.point = []
+
+    def ult_armor(self):
+        pass
 
     def get_map(self):
         # if chtoto == chemuto:
         #     return cthoto Если какой то навык, который может сменить фон, то нам сюда
         # else:
-        return f"images\\{self.map}"
+        return f"images\\{self.map}.png"
 
     def get_mapdeffecttype(self, name):  # Возрашает значения и тип дэффекта от карты
         types = {'PoisonForest': ["ALLDamage", 1],
@@ -105,15 +138,177 @@ class Fight():
     def get_figurs(self):
         return [i.name for i in self.plrs if i != None], [i.name for i in self.enems if i != None]
 
-    def get_players(self): # Список аттрибутов союзников
-        return [i.stats for i in self.plrs if i != None]
+    def get_players(self):  # Список аттрибутов союзников
+        a = []
+        for i in self.plrs:
+            if i != None:
+                a.append(i.stats())
+        return a
 
-    def get_enemyes(self): # Список аттрибутов врагов
-        return [i.stats for i in self.enems if i != None]
+    def get_enemyes(self):  # Список аттрибутов врагов
+        a = []
+        for i in self.enems:
+            if i != None:
+                a.append(i.stats())
+        return a
 
-    def get_images(self):  # Список ссылок на картинки [Frendly1, 2, 3] [Enemy1, 2, 3] P.S. использовал, что бы сопоставить их
+    def get_images(self):  # Список ссылок на картинки [Frendly1, 2, 3] [Enemy1, 2, 3] - уже не нужно
         return [i.image for i in self.plrs if i != None], [i.image for i in self.enems if i != None]
 
+    def checkdie(self):
+        for i in range(3):
+            if self.plrs[i] != None and self.plrs[i].hp <= 0:
+                self.plrs[i] = None
+            if self.enems[i] != None and self.enems[i].hp <= 0:
+                self.enems[i] = None
+                self.getgold += random.randint(28, 36)
+
+    def draw(self):
+        kash = self.getplr - 1
+        self.point = []
+        if (not self.buttonattacke and self.plrs[kash].ult in ['shotgun']) or self.buttonattacke:
+            self.point.append(1)
+            for i in range(3):
+                if self.enems[i] != None:
+                    kash1alpha = pygame.image.load("images\\retenemy.png").convert_alpha()
+                    kash1surf = pygame.transform.scale(kash1alpha, (80, 80))
+                    kash1rect = kash1surf.get_rect()
+                    screen.blit(kash1surf,
+                                (kash1rect.x + 670 + 200 * i, kash1rect.y + 620, kash1rect.width,
+                                 kash1rect.height))
+        if self.plrs[kash].ult in ['healtime'] and not self.buttonattacke:
+            self.point.append(2)
+            for i in range(3):
+                if self.plrs[i] != None:
+                    kash1alpha = pygame.image.load("images\\retplayer.png").convert_alpha()
+                    kash1surf = pygame.transform.scale(kash1alpha, (80, 80))
+                    kash1rect = kash1surf.get_rect()
+                    screen.blit(kash1surf,
+                                (kash1rect.x + 540 - 260 * i, kash1rect.y + 620, kash1rect.width, kash1rect.height))
+
+    def update(self):
+        if self.phase == "startgame":
+            for i in range(3):
+                if self.plrs[i] != None:
+                    self.phase = "startr"
+                    self.whomove = 1 + i * 2
+                    break
+                elif self.enems[i] != None:
+                    self.phase = "startr"
+                    self.whomove = 2 + i * 2
+                    break
+            else:
+                self.phase = "endloop"
+
+        elif self.phase == "startr":
+            if self.whomove % 2 == 1:
+                self.getplr = 1 + self.whomove // 2
+                for i in self.plrs[self.getplr - 1].buff:
+                    if i[0] in ["Poison"]:
+                        self.plrs[self.getplr - 1].damage(i[2], i[3])
+                self.plrs[self.getplr - 1].checktimesbaff()
+                self.checkdie()
+                self.loop()
+                self.buttonattacke = True
+                self.phase = "plr"
+            else:
+                self.getenem = 1 + self.whomove // 2
+                for i in self.enems[self.getenem].buff:
+                    if i[0] in ["Poison"]:
+                        self.enems[self.getenem].damage(i[2], i[3])
+                self.enems[self.getenem].checktimesbaff()
+                self.checkdie()
+                self.loop()
+                self.phase = "enem"
+        elif self.phase == "plr":
+            kash1alpha = pygame.image.load("images\\who.png").convert_alpha()
+            kash1surf = pygame.transform.scale(kash1alpha, (40, 40))
+            kash1rect = kash1surf.get_rect()
+            screen.blit(kash1surf,
+                        (kash1rect.x + 670 - 200 * self.getplr, kash1rect.y + 470, kash1rect.width, kash1rect.height))
+            self.draw()
+        elif self.phase == "enem":
+            enemy = self.enems[self.getenem - 1]
+            flag = True
+            if enemy.level == 1:
+                if random.randint(1, 100) >= 83:
+                    for i in self.plrs:
+                        for j in i.buff:
+                            if j[0] in ["Arena"]:
+                                i.damage(enemy.get_att() * 2, i.type)
+                                flag = True
+                                break
+                        if True:
+                            break
+                    else:
+                        self.plrs[random.randint(0, 2)].damage(enemy.get_att(), i.type)
+                else:
+                    for i in self.plrs:
+                        for j in i.buff:
+                            if j[0] in ["Arena"]:
+                                i.damage(enemy.get_att(), i.type)
+                                flag = False
+                                break
+                        if flag:
+                            break
+                    else:
+                        self.plrs[random.randint(0, 2)].damage(enemy.get_att(), i.type)
+            self.loop()
+        elif self.phase == "end":
+            for i in self.mapdeffect:
+                kash = self.get_mapdeffecttype(i)
+                if "PLRSHeal" in kash:
+                    for j in self.plrs:
+                        j.heal(kash[1])
+                if "PLRSDamage" in kash:
+                    for j in self.plrs:
+                        j.damage(kash[1], True)
+                if "ENEMYESHeal" in kash:
+                    for j in self.enems:
+                        j.heal(kash[1])
+                if "ALLDamage" in kash:
+                    for j in self.plrs:
+                        j.damage(kash[1], True)
+                    for j in self.enems:
+                        j.damage(kash[1], True)
+            self.phase = "startgame"
+
+    def loop(self):
+        if self.phase == 'plr':
+            if self.enems[self.getplr - 1] != None:
+                self.phase = 'enem'
+                self.getenem = self.getplr
+            else:
+                for i in range(self.getplr, 3):
+                    if self.plrs[i] != None:
+                        self.phase = "startr"
+                        self.whomove = 1 + i * 2
+                        break
+                    elif self.enems[i] != None:
+                        self.phase = "startr"
+                        self.whomove = 2 + i * 2
+                        break
+                else:
+                    self.phase = "end"
+        elif self.phase == "enem":
+            print(self.getenem)
+            if self.getenem != 3 and self.plrs[self.getenem - 1] != None:
+                self.phase = 'plr'
+                self.getplr = self.getenem + 1
+            elif self.getenem == 3:
+                self.phase = 'end'
+            else:
+                for i in range(self.getplr - 1, 3):
+                    if self.plrs[i] != None:
+                        self.phase = "plr"
+                        self.whomove = 1 + i * 2
+                        break
+                    elif self.enems[i] != None:
+                        self.phase = "enem"
+                        self.whomove = 2 + i * 2
+                        break
+                else:
+                    self.phase = "end"
 
 
 class Dota:
@@ -198,6 +393,9 @@ class Dota:
                                     self.room[1] -= 1
                                 self.room[0] += 1
                             elif 1120 < event.pos[0] < 1260 and 800 < event.pos[1] < 850:
+                                self.screen = 4
+                                self.board = Fight(["Pudge1", "DrowRanger1", "Oracle1"],
+                                                   ['GhostCreap1', 'Creep1', 'Creep1'], "Background")
                                 if self.room[1] == 0:
                                     self.room[1] = 2
                                 elif self.room[0] % 2 == 1:
@@ -215,6 +413,40 @@ class Dota:
                             # self.active_title(self.map[self.room[0] - 1][self.room[1] - 1])
 
                 elif self.screen == 4:
+                    if event.type == pygame.MOUSEBUTTONUP:
+                        # for i in range(3 - self.board.plrs.count(None)):
+                        #     kash1 = self.board.plrs[i].get_image()
+                        #     kash1alpha = pygame.image.load(kash1).convert_alpha()
+                        #     kash1surf = pygame.transform.scale(kash1alpha, (180, 260))
+                        #     kash1rect = kash1surf.get_rect()
+                        #     screen.blit(kash1surf, (
+                        #     kash1rect.x + 400 - 200 * i, kash1rect.y + 500, kash1rect.width, kash1rect.height))
+                        # for i in range(3 - self.board.enems.count(None)):
+                        #     kash1 = self.board.enems[i].get_image()
+                        #     kash1alpha = pygame.image.load(kash1).convert_alpha()
+                        #     kash1surf = pygame.transform.scale(kash1alpha, (180, 260))
+                        #     kash1rect = kash1surf.get_rect()
+                        #     screen.blit(kash1surf,
+                        #                 (kash1rect.x + 600 + 200 * i, kash1rect.y + 500, kash1rect.width - 50,
+                        #                  kash1rect.height - 50))
+                        if 1 in self.board.point:
+                            for i in range(3):
+                                if 600 + 200 * i < event.pos[0] < 780 + 200 * i and 500 < event.pos[
+                                    1] < 780 and self.board.enems[i] != 0:
+                                    self.board.clicked(i)
+                                    print('CLICKED 1')
+                                    break
+                        if 2 in self.board.point:
+                            for i in range(3):
+                                if 400 - 200 * i < event.pos[0] < 580 - 200 * i and 500 < event.pos[
+                                    1] < 780 and self.board.enems[i] != 0:
+                                    self.board.clicked(i)
+                                    print('CLICKED 2')
+                                    break
+
+
+
+                elif self.screen == 5:
                     pass
 
                 elif self.screen == 5:
@@ -236,7 +468,7 @@ class Dota:
         screen.fill((0, 0, 0))
         if self.screen == 1:
             self.main_screen()
-        elif self.screen == 6:
+        elif self.screen == 2:
             self.pick_screen()
         elif self.screen == 3:
             self.map_screen()
@@ -244,7 +476,7 @@ class Dota:
             self.fight_screen()
         elif self.screen == 5:
             self.boss_screen()
-        elif self.screen == 2:
+        elif self.screen == 6:
             self.fight_screen()
         elif self.screen == 7:
             self.event_screen()
@@ -432,21 +664,34 @@ class Dota:
             screen.blit(text, (1040, 815))
 
     def fight_screen(self):  # Окно боя
-        board = Fight(['Oracle1', None, None], ["Creep1", "Creep1", "Creep1"])
-        pygame.draw.rect(screen, (255, 255, 255), (0, 0, 800, 850))
-        backG_Image = pygame.image.load('images//Background.png')
-        backG_rect = backG_Image.get_rect()
-        screen.blit(backG_Image, backG_rect)
-        for i in range(3 - board.plrs.count(None)):
-            kash1 = board.plrs[i].get_image()
-            kash1alpha = pygame.image.load(kash1).convert_alpha()
-            kash1surf = pygame.transform.scale(kash1alpha, (180, 260))
-            kash1rect = kash1surf.get_rect()
-            screen.blit(kash1alpha, kash1rect)
+        if self.board.plrs != [None, None, None] and self.board.enems != [None, None, None]:
+            pygame.draw.rect(screen, (255, 255, 255), (0, 0, 800, 850))
+            backG_Image = pygame.image.load(self.board.get_map())
+            backG_rect = backG_Image.get_rect()
+            screen.blit(backG_Image, backG_rect)
+            for i in range(3):
+                if self.board.plrs[i] != None:
+                    kash1 = self.board.plrs[i].get_image()
+                    kash1alpha = pygame.image.load(kash1).convert_alpha()
+                    kash1surf = pygame.transform.scale(kash1alpha, (180, 260))
+                    kash1rect = kash1surf.get_rect()
+                    screen.blit(kash1surf,
+                                (kash1rect.x + 400 - 200 * i, kash1rect.y + 500, kash1rect.width, kash1rect.height))
+            for i in range(3):
+                if self.board.enems[i] != None:
+                    kash1 = self.board.enems[i].get_image()
+                    kash1alpha = pygame.image.load(kash1).convert_alpha()
+                    kash1surf = pygame.transform.scale(kash1alpha, (180, 260))
+                    kash1rect = kash1surf.get_rect()
+                    screen.blit(kash1surf, (kash1rect.x + 600 + 200 * i, kash1rect.y + 500, kash1rect.width - 50,
+                                            kash1rect.height - 50))
+            self.board.update()
+        elif self.board.enems == [None, None, None]:
+            self.gold_add(self.board.getgold)
+            self.screen = 3
 
     def boss_screen(self):
         pass
-
 
     def event_screen(self):
         pass
@@ -491,4 +736,3 @@ if __name__ == '__main__':
     size = width, height = 1280, 960
     screen = pygame.display.set_mode(size)
     Dota()
-
