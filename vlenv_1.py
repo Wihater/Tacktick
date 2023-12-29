@@ -7,6 +7,17 @@ import sqlite3
 WIDTH, HEIGHT = 1280, 960
 HEROS = {(0, 2): 'DrowRanger', (1, 2): 'Oracle', (2, 2): 'Pudge',
          '': ''}  # Словарь с героями и их индексацией для self.select_char
+EVENTS = {1: ['Вы попадаете на свой фонтан.',
+              'Здесь вы можете восполнить',
+              'свои ресурсы',
+              '(описание работы эффекта)',
+              '(я хз как он работать будет)'],
+          2: ['Проходя по лесу вы замечаете',
+              'стак крипов, вы можете',
+              f'получить много золота или',
+              'сделать еще один стак',
+              '(это увеличит золото за',
+              'это событие навсегда)']}
 
 
 def load_image(name, pack, colorkey=None):
@@ -352,6 +363,7 @@ class Fight():
 
 class Dota:
     def __init__(self):
+        self.bufs = []  # Список бафов (хз че ты с ним делать будешь))))
         self.map = []
         self.map_prev = 2
         self.map_title = 2
@@ -465,8 +477,8 @@ class Dota:
                                 self.room[1] -= 1
                                 self.movement()
                         if self.room[0] != 10:
-                            pass  # Смена экрана на бои/события/элиток. Если убрать комент то все будет плоха)))
-                            # self.active_title(self.map[self.room[0] - 1][self.room[1] - 1])
+                            # Смена экрана на бои/события/элиток.
+                            self.active_title(self.map[self.room[0] - 1][self.room[1] - 1])
 
                 elif self.screen == 4:
                     if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -505,18 +517,20 @@ class Dota:
                 elif self.screen == 5:
                     pass
 
-                elif self.screen == 5:
-                    pass
+                elif self.screen == 'e':  # Кнопки на событиях
+                    if event.type == pygame.MOUSEBUTTONUP:
+                        if 850 < event.pos[0] < 1030 and 800 < event.pos[1] < 850:
+                            self.event_res(4)
+                            self.screen = 3
+                        elif 1050 < event.pos[0] < 1230 and  800 < event.pos[1] < 850:
+                            self.event_res(5)
+                            self.screen = 3
 
             self.active_screen()
             pygame.display.flip()
         pygame.quit()
 
-
     def movement(self):
-        print(self.map)
-        print(self.room)
-        print(self.select_char)
         if self.map[self.room[0] - 1][self.room[1] - 1] == 'fight':
             kash = random.choices(['GhostCreap1', 'Wood1', 'Creep1', 'Creep1'], k=3)
             self.board = Fight(self.select_char, kash)
@@ -524,11 +538,11 @@ class Dota:
 
     def active_title(self, title):  # Экраны комнат
         if title == 'fight':
-            self.screen = 6
+            self.screen = 4
         elif title == 'event':
             self.screen = 7
         elif title == 'elite':
-            self.screen = 7
+            self.screen = 8
 
     def active_screen(self):  # Функция для выбора отрисовываемого окна
         screen.fill((0, 0, 0))
@@ -545,9 +559,11 @@ class Dota:
         elif self.screen == 6:
             self.fight_screen()
         elif self.screen == 7:
-            self.event_screen()
+            self.event_pick()
         elif self.screen == 8:
             self.elite_screen()
+        elif self.screen[0] == 'e':
+            self.event_screen()
 
     def main_screen(self):  # Меню
         fon = pygame.transform.scale(load_image('dota.jpg', 'data'), (WIDTH, HEIGHT))
@@ -763,14 +779,42 @@ class Dota:
             self.board.update()
         elif self.board.enems == [None, None, None]:
             print('END')
+            #if self.map[self.room[0] - 1][self.room[1] - 1] == 'fight':
             self.gold_add(self.board.getgold)
             self.screen = 3
 
     def boss_screen(self):
         pass
 
+    def event_pick(self):
+        self.connection = sqlite3.connect('DOTAS.db')
+        self.cursor = self.connection.cursor()
+        self.event_list = self.cursor.execute('SELECT * FROM events').fetchall()
+        self.connection.close()
+        self.event = random.choice(self.event_list)
+        self.screen = 'e'
+
     def event_screen(self):
-        pass
+        pygame.draw.rect(screen, (135, 135, 161), (800, 0, 500, 1000))
+        pygame.draw.rect(screen, self.event[8], (850, 800, 180, 50))
+        pygame.draw.rect(screen, self.event[9], (1050, 800, 180, 50))
+        self.print_text(70, self.event[1], 'red', (900, 100))
+        self.print_text(30, self.event[2], self.event[8], (830, 750))
+        self.print_text(30, self.event[3], self.event[9], (1050, 750))
+        self.print_event(40, EVENTS[self.event[0]], self.event[8], (850, 200))
+
+    def event_res(self, res):
+        if self.event[res] == 'buff_add':
+            self.bufs.append(self.event[res + 2])
+        elif self.event[res] == 'gold_add':
+            self.gold_add(int(self.event[res + 2]))
+        elif self.event[res] == 'file_edit':
+            self.connection = sqlite3.connect('DOTAS.db')
+            self.cursor = self.connection.cursor()
+            self.cursor.execute(f'UPDATE events SET effect1 = {str(int(self.event[6]) + int(self.event[7]))} WHERE id = {self.event[0]}')
+            self.cursor.execute(f'UPDATE events SET var1text = "Получить золото ({str(int(self.event[6]) + int(self.event[7]))})" WHERE id = {self.event[0]}')
+            self.connection.commit()
+            self.connection.close()
 
     def elite_screen(self):
         pass
@@ -815,10 +859,18 @@ class Dota:
         text = font.render(toprint, True, col)
         screen.blit(text, rect)
 
+    def print_event(self, size, toprint, col, rect):
+        font = pygame.font.SysFont('sistem', size)
+        self.rect = rect
+        for i in toprint:
+            text = font.render(i, True, col)
+            screen.blit(text, self.rect)
+            self.rect = (rect[0], self.rect[1] + size)
+
+
 if __name__ == '__main__':
     pygame.init()
     pygame.display.set_caption('Dota 3')
     size = WIDTH, HEIGHT
     screen = pygame.display.set_mode(size)
     Dota()
-
