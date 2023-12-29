@@ -18,7 +18,7 @@ EVENTS = {1: ['Вы попадаете на свой фонтан.',
               'сделать еще один стак',
               '(это увеличит золото за',
               'это событие навсегда)']}
-
+# Тексты для ивентов по id ивента
 
 def load_image(name, pack, colorkey=None):
     fullname = os.path.join(pack, name)
@@ -786,7 +786,7 @@ class Dota:
     def boss_screen(self):
         pass
 
-    def event_pick(self):
+    def event_pick(self):  # тут редачить ничего не придеться
         self.connection = sqlite3.connect('DOTAS.db')
         self.cursor = self.connection.cursor()
         self.event_list = self.cursor.execute('SELECT * FROM events').fetchall()
@@ -794,7 +794,7 @@ class Dota:
         self.event = random.choice(self.event_list)
         self.screen = 'e'
 
-    def event_screen(self):
+    def event_screen(self):  # Отрисовка ивента
         pygame.draw.rect(screen, (135, 135, 161), (800, 0, 500, 1000))
         pygame.draw.rect(screen, self.event[8], (850, 800, 180, 50))
         pygame.draw.rect(screen, self.event[9], (1050, 800, 180, 50))
@@ -803,7 +803,7 @@ class Dota:
         self.print_text(30, self.event[3], self.event[9], (1050, 750))
         self.print_event(40, EVENTS[self.event[0]], self.event[8], (850, 200))
 
-    def event_res(self, res):
+    def event_res(self, res):  # Результаты ивента, если будешь добавлять новые ивенты, в дб в var1 и 2 resы вписывай кодовые слова и через иф здесь добавляй(еффект в дб - передоваемое значение при разных resах)
         if self.event[res] == 'buff_add':
             self.bufs.append(self.event[res + 2])
         elif self.event[res] == 'gold_add':
