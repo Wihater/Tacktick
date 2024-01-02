@@ -3,8 +3,13 @@ import random
 import os
 import sys
 import sqlite3
+import rulet
 
 WIDTH, HEIGHT = 1280, 960
+all_sprites = pygame.sprite.Group()
+horizontal_b = pygame.sprite.Group()
+vertical_b = pygame.sprite.Group()
+clock = pygame.time.Clock()
 HEROS = {(0, 2): 'DrowRanger', (1, 2): 'Oracle', (2, 2): 'Pudge',
          '': ''}  # Словарь с героями и их индексацией для self.select_char
 EVENTS = {1: ['Вы попадаете на свой фонтан.',
@@ -17,8 +22,15 @@ EVENTS = {1: ['Вы попадаете на свой фонтан.',
               f'получить много золота или',
               'сделать еще один стак',
               '(это увеличит золото за',
-              'это событие навсегда)']}
-# Тексты для ивентов по id ивента
+              'это событие навсегда)'],
+          3: ['Кто-то решил организовать',
+              'в лесу полноценное казино.',
+              'Среди всех способов',
+              'проиграть свои деньги вам',
+              'приглянулась эта рулетка.',
+              '',
+              'Готовы потратить 500 золота?']}
+
 
 def load_image(name, pack, colorkey=None):
     fullname = os.path.join(pack, name)
@@ -34,6 +46,38 @@ def load_image(name, pack, colorkey=None):
     else:
         image = image.convert_alpha()
     return image
+
+
+class Border(pygame.sprite.Sprite):
+    def __init__(self, x1, y1, x2, y2):
+        super().__init__(all_sprites)
+        if x1 == x2:
+            self.add(vertical_b)
+            self.image = pygame.Surface([1, y2 - y1])
+            self.rect = pygame.Rect(x1, y1, 1, y2 - y1)
+        else:
+            self.add(horizontal_b)
+            self.image = pygame.Surface([x2 - x1, 1])
+            self.rect = pygame.Rect(x1, y1, x2 - x1, 1)
+
+class Dvd(pygame.sprite.Sprite):
+    dota = load_image('dota DVD.png', 'images')
+    dota = pygame.transform.scale(dota, (100, 100))
+
+    def __init__(self, x, y):
+        super().__init__(all_sprites)
+        self.image = Dvd.dota
+        self.rect = pygame.Rect(x, y, 100, 100)
+        self.vx = 5
+        self.vy = 5
+
+    def update(self):
+        self.rect = self.rect.move(self.vx, self.vy)
+        if pygame.sprite.spritecollideany(self, horizontal_b):
+            self.vy = -self.vy
+        if pygame.sprite.spritecollideany(self, vertical_b):
+            self.vx = -self.vx
+        clock.tick(60)
 
 
 class Hero:
@@ -363,6 +407,12 @@ class Fight():
 
 class Dota:
     def __init__(self):
+        Border(5, 5, WIDTH - 5, 5)
+        Border(5, HEIGHT - 5, WIDTH - 5, HEIGHT - 5)
+        Border(5, 5, 5, HEIGHT - 5)
+        Border(WIDTH - 5, 5, WIDTH - 5, HEIGHT - 5)
+        Border(0, 500, 1280, 500)
+        Dvd(640, 150)
         self.bufs = []  # Список бафов (хз че ты с ним делать будешь))))
         self.map = []
         self.map_prev = 2
@@ -562,13 +612,16 @@ class Dota:
             self.event_pick()
         elif self.screen == 8:
             self.elite_screen()
-        elif self.screen[0] == 'e':
+        elif self.screen == 'e':
             self.event_screen()
 
     def main_screen(self):  # Меню
-        fon = pygame.transform.scale(load_image('dota.jpg', 'data'), (WIDTH, HEIGHT))
-        screen.blit(fon, (0, 0))
-        pygame.draw.rect(screen, (235, 122, 52), (140, 500, 1000, 400))
+        #fon = pygame.transform.scale(load_image('dota.jpg', 'data'), (WIDTH, HEIGHT))
+        #screen.blit(fon, (0, 0))
+        all_sprites.draw(screen)
+        for i in all_sprites:
+            i.update()
+        pygame.draw.rect(screen, (235, 122, 52), (0, 500, 1280, 400))
         pygame.draw.rect(screen, (135, 135, 161), (300, 550, 680, 100))
         pygame.draw.rect(screen, (65, 147, 191), (300, 550, 680, 100), 5)
         pygame.draw.rect(screen, (135, 135, 161), (220, 700, 240, 50))
@@ -786,7 +839,7 @@ class Dota:
     def boss_screen(self):
         pass
 
-    def event_pick(self):  # тут редачить ничего не придеться
+    def event_pick(self):
         self.connection = sqlite3.connect('DOTAS.db')
         self.cursor = self.connection.cursor()
         self.event_list = self.cursor.execute('SELECT * FROM events').fetchall()
@@ -794,16 +847,16 @@ class Dota:
         self.event = random.choice(self.event_list)
         self.screen = 'e'
 
-    def event_screen(self):  # Отрисовка ивента
+    def event_screen(self):
         pygame.draw.rect(screen, (135, 135, 161), (800, 0, 500, 1000))
         pygame.draw.rect(screen, self.event[8], (850, 800, 180, 50))
         pygame.draw.rect(screen, self.event[9], (1050, 800, 180, 50))
         self.print_text(70, self.event[1], 'red', (900, 100))
         self.print_text(30, self.event[2], self.event[8], (830, 750))
-        self.print_text(30, self.event[3], self.event[9], (1050, 750))
+        self.print_text(30, self.event[3], self.event[9], (1060, 750))
         self.print_event(40, EVENTS[self.event[0]], self.event[8], (850, 200))
 
-    def event_res(self, res):  # Результаты ивента, если будешь добавлять новые ивенты, в дб в var1 и 2 resы вписывай кодовые слова и через иф здесь добавляй(еффект в дб - передоваемое значение при разных resах)
+    def event_res(self, res):
         if self.event[res] == 'buff_add':
             self.bufs.append(self.event[res + 2])
         elif self.event[res] == 'gold_add':
@@ -815,6 +868,9 @@ class Dota:
             self.cursor.execute(f'UPDATE events SET var1text = "Получить золото ({str(int(self.event[6]) + int(self.event[7]))})" WHERE id = {self.event[0]}')
             self.connection.commit()
             self.connection.close()
+        elif self.event[res] == 'rulet' and int(self.gold) >= 500:
+            self.result = rulet.rulet()
+            self.gold_add(-500 + self.result)
 
     def elite_screen(self):
         pass
