@@ -36,7 +36,7 @@ def rulet():
                 running = False
             if event.type == pygame.MOUSEBUTTONUP:
                 if end_1 == True:
-                    return int(500 * res)
+                    return int(100 * res)
                 if end == False:
                     rulet = True
                 else:
@@ -50,12 +50,12 @@ def rulet():
         else:
             screen.fill((0, 0, 0))
             font = pygame.font.SysFont('sistem', 50)
-            if -500 + 500 * res < 0:
-                text = font.render(f'Вы потеряли {-(int(-500 + 500 * res))} золота!', True, 'red')
-            elif -500 + 500 * res == 0:
+            if -100 + 100 * res < 0:
+                text = font.render(f'Вы потеряли {-(int(-100 + 100 * res))} золота!', True, 'red')
+            elif -100 + 100 * res == 0:
                 text = font.render('Вы ничего не получили', True, 'white')
             else:
-                text = font.render('Вы получили 500 золота!', True, 'yellow')
+                text = font.render('Вы получили 100 золота!', True, 'yellow')
             screen.blit(text, (400, 400))
             pygame.display.flip()
 
