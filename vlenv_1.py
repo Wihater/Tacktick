@@ -5,13 +5,33 @@ import sys
 import sqlite3
 import rulet
 
+
+def load_image(name, pack, colorkey=None):
+    fullname = os.path.join(pack, name)
+    if not os.path.isfile(fullname):
+        print(f"Файл с изображением '{fullname}' не найден")
+        sys.exit()
+    image = pygame.image.load(fullname)
+    if colorkey is not None:
+        image = image.convert()
+        if colorkey == -1:
+            colorkey = image.get_at((0, 0))
+        image.set_colorkey(colorkey)
+    else:
+        image = image.convert_alpha()
+    return image
+
+
 WIDTH, HEIGHT = 1280, 960
 all_sprites = pygame.sprite.Group()
 horizontal_b = pygame.sprite.Group()
 vertical_b = pygame.sprite.Group()
 clock = pygame.time.Clock()
+restart_img = load_image('restart.png', 'images')
+restart_img = pygame.transform.scale(restart_img, (49, 49))
+
 HEROS = {(0, 2): 'DrowRanger', (1, 2): 'Oracle', (2, 2): 'Pudge',
-         '': ''}  # Словарь с героями и их индексацией для self.select_char
+         '': '', (3, 2): 'Mars'}  # Словарь с героями и их индексацией для self.select_char
 EVENTS = {1: ['Вы попадаете на свой фонтан.',
               'Здесь вы можете восполнить',
               'свои ресурсы',
@@ -29,23 +49,14 @@ EVENTS = {1: ['Вы попадаете на свой фонтан.',
               'проиграть свои деньги вам',
               'приглянулась эта рулетка.',
               '',
-              'Готовы потратить 500 золота?']}
-
-
-def load_image(name, pack, colorkey=None):
-    fullname = os.path.join(pack, name)
-    if not os.path.isfile(fullname):
-        print(f"Файл с изображением '{fullname}' не найден")
-        sys.exit()
-    image = pygame.image.load(fullname)
-    if colorkey is not None:
-        image = image.convert()
-        if colorkey == -1:
-            colorkey = image.get_at((0, 0))
-        image.set_colorkey(colorkey)
-    else:
-        image = image.convert_alpha()
-    return image
+              'Готовы потратить 100 золота?'],
+          4: ['перед вами оказался великий',
+              'и могущественный заклинатель',
+              'Warlock. Он предлагает сделку.',
+              'Он просит 100 монет, иначе он',
+              'наложит на вас проклятие',
+              '',
+              'Заплатить?']}
 
 
 class Border(pygame.sprite.Sprite):
@@ -81,7 +92,7 @@ class Dvd(pygame.sprite.Sprite):
 
 
 class Hero:
-    def __init__(self, name, hp, type, att, ult, ult1, ult2):
+    def __init__(self, name, hp, type, att, ult, ult1, ult2, mana):
         self.level = int(name[-1])
         self.name = name[:len(name) - 1]
         self.standhp, self.hp = hp, hp
@@ -408,35 +419,14 @@ class Fight():
 class Dota:
     def __init__(self):
         Border(5, 5, WIDTH - 5, 5)
-        Border(5, HEIGHT - 5, WIDTH - 5, HEIGHT - 5)
         Border(5, 5, 5, HEIGHT - 5)
         Border(WIDTH - 5, 5, WIDTH - 5, HEIGHT - 5)
         Border(0, 500, 1280, 500)
         Dvd(640, 150)
-        self.bufs = []  # Список бафов (хз че ты с ним делать будешь))))
-        self.map = []
-        self.map_prev = 2
-        self.map_title = 2
-        self.map_titles = ['fight', 'fight']
-        self.map.append(self.map_titles)
-        for i in range(9):  # Что-то типо гениратора карты
-            while self.map_title == self.map_prev:
-                self.map_title = random.randint(2, 3)
-            self.map_prev = self.map_title
-            self.map_titles = []
-            for j in range(self.map_title):
-                self.map_titles.append(
-                    random.choice(('fight', 'fight', 'fight', 'fight', 'fight', 'fight', 'event', 'event', 'elite')))
-            self.map.append(self.map_titles)
-        self.room = [0, 0]
-        self.save = 1  # Сохранение (1 окно)
-        self.files()
-        self.select = 1  # Выбранный слот отряда (2 окно)
-        self.screen = 1  # Номер экрана (для active_screen())
+        self.start()
         self.running = True
-        self.select_char = ['', '', '']  # Отряд
-        self.connection = sqlite3.connect('DOTAS.db')  # Создание списка из всех героев и их статов
-        self.cursor = self.connection.cursor()  # По типу [[('DrowRanger2', 24, 'range', 11, 'shotgun', 4, None)], [('Oracle3', 26, 'range', 6, 'healtime', 2, 4)], [('Pudge3', 38, 'melee', 9, 'armor', 5, None)]]
+        self.connection = sqlite3.connect('DOTAS.db')
+        self.cursor = self.connection.cursor()
         self.hero_list = self.cursor.execute('SELECT * FROM heroes_pick').fetchall()
         self.stat_list = []
         for i in range(len(self.hero_list)):
@@ -493,8 +483,8 @@ class Dota:
                             for i in range(len(self.hero_list)):
                                 if 220 + i * 80 - i // 3 * 240 < event.pos[0] < 220 + i * 80 - i // 3 * 240 + 70 \
                                         and 180 + i // 3 * 80 < event.pos[1] < 180 + i // 3 * 80 + 70:
-                                    if (i, j) not in self.select_char:
-                                        self.select_char[self.select - 1] = (i, j)
+                                    if (i, 2) not in self.select_char:
+                                        self.select_char[self.select - 1] = (i, 2)
 
                 elif self.screen == 3:
                     if event.type == pygame.MOUSEBUTTONUP:
@@ -529,6 +519,8 @@ class Dota:
                         if self.room[0] != 10:
                             # Смена экрана на бои/события/элиток.
                             self.active_title(self.map[self.room[0] - 1][self.room[1] - 1])
+                        if 50 < event.pos[0] < 100 and 50 < event.pos[1] < 100:
+                            self.start()
 
                 elif self.screen == 4:
                     if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -711,6 +703,8 @@ class Dota:
     def map_screen(self):  # Окно карты
         pygame.draw.rect(screen, (158, 154, 122), (100, 50, 800, 850))
         pygame.draw.rect(screen, (86, 104, 209), (930, 0, 360, 1000))
+        pygame.draw.rect(screen, 'green', (50, 50, 50, 50))
+        screen.blit(restart_img, (51, 51))
         for i in range(9):  # Линии между комнатами (ужас)
             for j in range(2):
                 if i % 2 == 0:
@@ -844,7 +838,9 @@ class Dota:
         self.cursor = self.connection.cursor()
         self.event_list = self.cursor.execute('SELECT * FROM events').fetchall()
         self.connection.close()
-        self.event = random.choice(self.event_list)
+        self.event =['st']
+        while self.event[-1] in self.event_flag:
+            self.event = random.choice(self.event_list)
         self.screen = 'e'
 
     def event_screen(self):
@@ -854,11 +850,16 @@ class Dota:
         self.print_text(70, self.event[1], 'red', (900, 100))
         self.print_text(30, self.event[2], self.event[8], (830, 750))
         self.print_text(30, self.event[3], self.event[9], (1060, 750))
-        self.print_event(40, EVENTS[self.event[0]], self.event[8], (850, 200))
+        self.print_event(40, EVENTS[self.event[0]], self.event[8], (840, 200))
 
     def event_res(self, res):
+        if self.event[-1] != 'x':
+            self.event_flag.append(self.event[-1])
         if self.event[res] == 'buff_add':
-            self.bufs.append(self.event[res + 2])
+            if self.event[res + 2][0] == '-':
+                self.debuffs.append(self.event[res + 2][1:])
+            else:
+                self.buffs.append(self.event[res + 2])
         elif self.event[res] == 'gold_add':
             self.gold_add(int(self.event[res + 2]))
         elif self.event[res] == 'file_edit':
@@ -868,9 +869,9 @@ class Dota:
             self.cursor.execute(f'UPDATE events SET var1text = "Получить золото ({str(int(self.event[6]) + int(self.event[7]))})" WHERE id = {self.event[0]}')
             self.connection.commit()
             self.connection.close()
-        elif self.event[res] == 'rulet' and int(self.gold) >= 500:
+        elif self.event[res] == 'rulet' and int(self.gold) >= 100:
             self.result = rulet.rulet()
-            self.gold_add(-500 + self.result)
+            self.gold_add(-100 + self.result)
 
     def elite_screen(self):
         pass
@@ -883,7 +884,7 @@ class Dota:
 
     def lvl_up(self, char):  # Изменение уровня
         self.lvl_file = open(f'lvl//lvl{self.save}.txt', mode='w', encoding='utf-8')
-        if self.lvls[char[0]] + 1 != 4:
+        if self.lvls[char[0]] + 1 != 6:
             self.lvls[char[0]] += 1
             self.gold_add(-100)
         for i in self.lvls:
@@ -904,11 +905,32 @@ class Dota:
             self.lvl = open(f'lvl//lvl{self.save}.txt', mode='r', encoding='utf-8').read()
         except Exception:
             print('Файлы не найдены')
-            self.lvl = '111'
+            self.lvl = '1111'
             self.gold = '10'
         self.lvls = []
-        for i in range(3):
+        for i in range(4):
             self.lvls.append(int(self.lvl[i]))
+
+    def start(self):  # Старт программы и любые возвращения в меню
+        self.buffs = []  # Список бафов (хз че ты с ним делать будешь))))
+        self.debuffs = []
+        self.event_flag = ['st']
+        self.room = [0, 0]
+        self.save = 1  # Сохранение (1 окно)
+        self.files()
+        self.select = 1  # Выбранный слот отряда (2 окно)
+        self.screen = 1  # Номер экрана (для active_screen())
+        self.select_char = ['', '', '']  # Отряд
+        self.map = []
+        self.map_titles = ['fight', 'fight']
+        self.map.append(self.map_titles)
+        self.map_rooms = [3, 2, 3, 2, 3, 2, 3, 2, 3]
+        for i in range(9):  # Генератор карты
+            self.map_titles = []
+            for j in range(self.map_rooms[i]):
+                self.map_titles.append(
+                    random.choice(('fight', 'fight', 'fight', 'fight', 'fight', 'fight', 'event', 'event', 'elite')))
+            self.map.append(self.map_titles)
 
     def print_text(self, size, toprint, col, rect):
         font = pygame.font.SysFont('sistem', size)
