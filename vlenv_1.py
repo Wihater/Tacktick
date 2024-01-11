@@ -23,15 +23,10 @@ def load_image(name, pack, colorkey=None):
 
 
 WIDTH, HEIGHT = 1280, 960
-all_sprites = pygame.sprite.Group()
-horizontal_b = pygame.sprite.Group()
-vertical_b = pygame.sprite.Group()
-clock = pygame.time.Clock()
-restart_img = load_image('restart.png', 'images')
-restart_img = pygame.transform.scale(restart_img, (49, 49))
+CLOCK = pygame.time.Clock()
 
 HEROS = {(0, 2): 'DrowRanger', (1, 2): 'Oracle', (2, 2): 'Pudge',
-         '': '', (3, 2): 'Mars'}  # Словарь с героями и их индексацией для self.select_char
+         '': '', (3, 2): 'Mars', (4, 2): 'BountyHunter'}  # Словарь с героями и их индексацией для self.select_char
 EVENTS = {1: ['Вы попадаете на свой фонтан.',
               'Здесь вы можете восполнить',
               'свои ресурсы',
@@ -61,13 +56,13 @@ EVENTS = {1: ['Вы попадаете на свой фонтан.',
 
 class Border(pygame.sprite.Sprite):
     def __init__(self, x1, y1, x2, y2):
-        super().__init__(all_sprites)
+        super().__init__(Dota.all_sprites)
         if x1 == x2:
-            self.add(vertical_b)
+            self.add(Dota.vertical_b)
             self.image = pygame.Surface([1, y2 - y1])
             self.rect = pygame.Rect(x1, y1, 1, y2 - y1)
         else:
-            self.add(horizontal_b)
+            self.add(Dota.horizontal_b)
             self.image = pygame.Surface([x2 - x1, 1])
             self.rect = pygame.Rect(x1, y1, x2 - x1, 1)
 
@@ -76,7 +71,7 @@ class Dvd(pygame.sprite.Sprite):
     dota = pygame.transform.scale(dota, (100, 100))
 
     def __init__(self, x, y):
-        super().__init__(all_sprites)
+        super().__init__(Dota.all_sprites)
         self.image = Dvd.dota
         self.rect = pygame.Rect(x, y, 100, 100)
         self.vx = 5
@@ -84,11 +79,11 @@ class Dvd(pygame.sprite.Sprite):
 
     def update(self):
         self.rect = self.rect.move(self.vx, self.vy)
-        if pygame.sprite.spritecollideany(self, horizontal_b):
+        if pygame.sprite.spritecollideany(self, Dota.horizontal_b):
             self.vy = -self.vy
-        if pygame.sprite.spritecollideany(self, vertical_b):
+        if pygame.sprite.spritecollideany(self, Dota.vertical_b):
             self.vx = -self.vx
-        clock.tick(60)
+        CLOCK.tick(60)
 
 
 class Hero:
@@ -102,6 +97,8 @@ class Hero:
         self.ult1 = ult1
         self.ult2 = ult2
         self.buff = []
+        self.animation = ''
+        self.count = 0
 
     def typebaff(self, name):  # Возрашает список тегов эффектов
         types = {'armor': ["armor", "-damage"],
@@ -149,7 +146,17 @@ class Hero:
             return supertype[self.ult]
 
     def get_image(self, prepiska=""):  # Возращает картинку ( и нужную анимацию)
-        return "images\\" + self.name + prepiska + ".png"
+        if self.count == 0:
+            self.animation = ''
+        if self.animation == '':
+            return "images\\" + self.name + prepiska + ".png"
+        elif self.animation == 'a':
+            self.count -= 1
+            return "images\\" + self.name + "Attake.png"
+        elif self.animation == 'u':
+            self.count -= 1
+            return "images\\" + self.name + "Ult.png"
+        CLOCK.tick(20)
 
     def stats(self):
         return [self.name, self.standhp, self.hp, self.get_att(), self.ult, self.buff]
@@ -158,6 +165,10 @@ class Hero:
         for i in self.buff:
             if i[1] <= 0:
                 self.buff.remove(i)
+
+    def anim(self, type):
+        self.animation = type
+        self.count = 10
 
 
 class Fight():
@@ -217,7 +228,8 @@ class Fight():
 
     def ult_shotgun(self, who):
         for i in range(3):
-            self.enems[i].damage(self.plrs[self.getplr - 1].ult1)
+            if self.enems[i] != None:
+                self.enems[i].damage(self.plrs[self.getplr - 1].ult1)
 
     def get_map(self):
         # if chtoto == chemuto:
@@ -261,34 +273,35 @@ class Fight():
                 self.getgold += random.randint(28, 36)
 
     def draw(self):
-        kash = self.getplr - 1
-        self.point = []
-        if (not self.buttonattacke and self.plrs[kash].ult in ['shotgun']) or self.buttonattacke:
-            self.point.append(1)
-            for i in range(3):
-                if self.enems[i] != None:
-                    kash1alpha = pygame.image.load("images\\retenemy.png").convert_alpha()
-                    kash1surf = pygame.transform.scale(kash1alpha, (80, 80))
-                    kash1rect = kash1surf.get_rect()
-                    screen.blit(kash1surf,
-                                (kash1rect.x + 670 + 200 * i, kash1rect.y + 620, kash1rect.width,
-                                 kash1rect.height))
-        if self.plrs[kash].ult in ['healtime'] and not self.buttonattacke:
-            self.point.append(2)
-            for i in range(3):
-                if self.plrs[i] != None:
-                    kash1alpha = pygame.image.load("images\\retplayer.png").convert_alpha()
-                    kash1surf = pygame.transform.scale(kash1alpha, (80, 80))
-                    kash1rect = kash1surf.get_rect()
-                    screen.blit(kash1surf,
-                                (kash1rect.x + 480 - 200 * i, kash1rect.y + 620, kash1rect.width, kash1rect.height))
-        if self.plrs[kash].ult in ['armor'] and not self.buttonattacke:
-            self.point.append(3)
-            kash1alpha = pygame.image.load("images\\retplayer.png").convert_alpha()
-            kash1surf = pygame.transform.scale(kash1alpha, (80, 80))
-            kash1rect = kash1surf.get_rect()
-            screen.blit(kash1surf,
-                        (kash1rect.x + 480 - 200 * kash - 1, kash1rect.y + 620, kash1rect.width, kash1rect.height))
+        if self.plrs[self.getplr - 1] != None:
+            kash = self.getplr - 1
+            self.point = []
+            if (not self.buttonattacke and self.plrs[kash].ult in ['shotgun']) or self.buttonattacke:
+                self.point.append(1)
+                for i in range(3):
+                    if self.enems[i] != None:
+                        kash1alpha = pygame.image.load("images\\retenemy.png").convert_alpha()
+                        kash1surf = pygame.transform.scale(kash1alpha, (80, 80))
+                        kash1rect = kash1surf.get_rect()
+                        screen.blit(kash1surf,
+                                    (kash1rect.x + 670 + 200 * i, kash1rect.y + 620, kash1rect.width,
+                                     kash1rect.height))
+            if self.plrs[kash].ult in ['healtime'] and not self.buttonattacke:
+                self.point.append(2)
+                for i in range(3):
+                    if self.plrs[i] != None:
+                        kash1alpha = pygame.image.load("images\\retplayer.png").convert_alpha()
+                        kash1surf = pygame.transform.scale(kash1alpha, (80, 80))
+                        kash1rect = kash1surf.get_rect()
+                        screen.blit(kash1surf,
+                                    (kash1rect.x + 480 - 200 * i, kash1rect.y + 620, kash1rect.width, kash1rect.height))
+            if self.plrs[kash].ult in ['armor'] and not self.buttonattacke:
+                self.point.append(3)
+                kash1alpha = pygame.image.load("images\\retplayer.png").convert_alpha()
+                kash1surf = pygame.transform.scale(kash1alpha, (80, 80))
+                kash1rect = kash1surf.get_rect()
+                screen.blit(kash1surf,
+                            (kash1rect.x + 480 - 200 * kash - 1, kash1rect.y + 620, kash1rect.width, kash1rect.height))
 
     def update(self):
         if self.phase == "startgame":
@@ -358,6 +371,7 @@ class Fight():
                             break
                     if flag:
                         kash = random.randint(0, 2)
+                        enemy.anim('a')
                         self.plrs[kash].damage(enemy.get_att())
             self.loop()
         elif self.phase == "end":
@@ -417,6 +431,12 @@ class Fight():
 
 
 class Dota:
+    all_sprites = pygame.sprite.Group()
+    horizontal_b = pygame.sprite.Group()
+    vertical_b = pygame.sprite.Group()
+    restart_img = load_image('restart.png', 'images')
+    restart_img = pygame.transform.scale(restart_img, (49, 49))
+
     def __init__(self):
         Border(5, 5, WIDTH - 5, 5)
         Border(5, 5, 5, HEIGHT - 5)
@@ -473,7 +493,7 @@ class Dota:
                                 self.screen = 3
                                 for i in range(
                                         len(self.select_char)):  # Превращение self.select_char из списка индексов героев в список из 3 героев с уровнями по типу ['Pudge2', 'Drow ranger3', 'Oracle3']
-                                    self.select_char[i] = HEROS[self.select_char[i]] + str(self.lvls[i])
+                                    self.select_char[i] = HEROS[self.select_char[i]] + str(self.lvls[int(self.select_char[i][0])])
 
                         elif 460 < event.pos[0] < 610 and 600 < event.pos[1] < 675:  # Улучшение
                             if int(self.gold) >= 100:
@@ -490,7 +510,7 @@ class Dota:
                     if event.type == pygame.MOUSEBUTTONUP:
                         if self.room[0] == 10:  # Кнопки передвижения на карте (прикольна)
                             if 960 < event.pos[0] < 1260 and 800 < event.pos[1] < 850:
-                                self.screen = 5
+                                self.screen = 'f'
                         elif self.room[0] % 2 == 1 or (self.room[1] == 2 and self.room[0] % 2 == 0) or self.room[
                             0] == 0:
                             if 960 < event.pos[0] < 1100 and 800 < event.pos[1] < 850:
@@ -516,9 +536,7 @@ class Dota:
                                 self.room[0] += 1
                                 self.room[1] -= 1
                                 self.movement()
-                        if self.room[0] != 10:
-                            # Смена экрана на бои/события/элиток.
-                            self.active_title(self.map[self.room[0] - 1][self.room[1] - 1])
+
                         if 50 < event.pos[0] < 100 and 50 < event.pos[1] < 100:
                             self.start()
 
@@ -529,18 +547,21 @@ class Dota:
                                 if 600 + 200 * i < event.pos[0] < 780 + 200 * i and 500 < event.pos[
                                     1] < 780 and self.board.enems[i] != None:
                                     self.board.clicked(i)
+                                    self.get_anim()
                                     break
                         if 2 in self.board.point:
                             for i in range(3):
                                 if 400 - 200 * i < event.pos[0] < 580 - 200 * i and 500 < event.pos[
                                     1] < 780 and self.board.plrs[i] != None:
                                     self.board.clicked(i)
+                                    self.get_anim()
                                     break
                         if 3 in self.board.point:
                             for i in range(3):
                                 if 400 - 200 * i < event.pos[0] < 580 - 200 * i and 500 < event.pos[
                                     1] < 780 and self.board.plrs[i] != None and i == self.board.getplr - 1:
                                     self.board.clicked(i)
+                                    self.get_anim()
                                     break
 
                         if 1000 < event.pos[0] < 1170 and 780 < event.pos[
@@ -577,6 +598,8 @@ class Dota:
             kash = random.choices(['GhostCreap1', 'Wood1', 'Creep1', 'Creep1'], k=3)
             self.board = Fight(self.select_char, kash)
             self.screen = 4
+        else:
+            self.active_title(self.map[self.room[0] - 1][self.room[1] - 1])
 
     def active_title(self, title):  # Экраны комнат
         if title == 'fight':
@@ -604,14 +627,16 @@ class Dota:
             self.event_pick()
         elif self.screen == 8:
             self.elite_screen()
+        elif self.screen == 'f':
+            self.fin_screen()
         elif self.screen == 'e':
             self.event_screen()
 
     def main_screen(self):  # Меню
         #fon = pygame.transform.scale(load_image('dota.jpg', 'data'), (WIDTH, HEIGHT))
         #screen.blit(fon, (0, 0))
-        all_sprites.draw(screen)
-        for i in all_sprites:
+        Dota.all_sprites.draw(screen)
+        for i in Dota.all_sprites:
             i.update()
         pygame.draw.rect(screen, (235, 122, 52), (0, 500, 1280, 400))
         pygame.draw.rect(screen, (135, 135, 161), (300, 550, 680, 100))
@@ -704,7 +729,7 @@ class Dota:
         pygame.draw.rect(screen, (158, 154, 122), (100, 50, 800, 850))
         pygame.draw.rect(screen, (86, 104, 209), (930, 0, 360, 1000))
         pygame.draw.rect(screen, 'green', (50, 50, 50, 50))
-        screen.blit(restart_img, (51, 51))
+        screen.blit(Dota.restart_img, (51, 51))
         for i in range(9):  # Линии между комнатами (ужас)
             for j in range(2):
                 if i % 2 == 0:
@@ -771,7 +796,6 @@ class Dota:
 
     def fight_screen(self):  # Окно боя
         if self.board.plrs != [None, None, None] and self.board.enems != [None, None, None]:
-            print(self.board.get_players())
             pygame.draw.rect(screen, (255, 255, 255), (0, 0, 800, 850))
             backG_Image = pygame.image.load(self.board.get_map())
             backG_rect = backG_Image.get_rect()
@@ -828,6 +852,7 @@ class Dota:
             print('END')
             #if self.map[self.room[0] - 1][self.room[1] - 1] == 'fight':
             self.gold_add(self.board.getgold)
+            self.fin_gold += self.board.getgold
             self.screen = 3
 
     def boss_screen(self):
@@ -838,7 +863,7 @@ class Dota:
         self.cursor = self.connection.cursor()
         self.event_list = self.cursor.execute('SELECT * FROM events').fetchall()
         self.connection.close()
-        self.event =['st']
+        self.event = ['st']
         while self.event[-1] in self.event_flag:
             self.event = random.choice(self.event_list)
         self.screen = 'e'
@@ -862,6 +887,7 @@ class Dota:
                 self.buffs.append(self.event[res + 2])
         elif self.event[res] == 'gold_add':
             self.gold_add(int(self.event[res + 2]))
+            self.fin_gold += int(self.event[res + 2])
         elif self.event[res] == 'file_edit':
             self.connection = sqlite3.connect('DOTAS.db')
             self.cursor = self.connection.cursor()
@@ -872,9 +898,13 @@ class Dota:
         elif self.event[res] == 'rulet' and int(self.gold) >= 100:
             self.result = rulet.rulet()
             self.gold_add(-100 + self.result)
+            self.fin_gold += -100 + self.result
 
     def elite_screen(self):
         pass
+
+    def fin_screen(self):
+        self.print_text(50, f'Вы заработали {self.fin_gold} золота!', 'yellow', (100, 200))
 
     def gold_add(self, goldadd):  # Изменение денег
         gold_file = open(f'gold//gold{self.save}.txt', mode='w', encoding='utf-8')
@@ -905,19 +935,20 @@ class Dota:
             self.lvl = open(f'lvl//lvl{self.save}.txt', mode='r', encoding='utf-8').read()
         except Exception:
             print('Файлы не найдены')
-            self.lvl = '1111'
+            self.lvl = '11111'
             self.gold = '10'
         self.lvls = []
-        for i in range(4):
+        for i in range(len(self.lvl)):
             self.lvls.append(int(self.lvl[i]))
 
     def start(self):  # Старт программы и любые возвращения в меню
-        self.buffs = []  # Список бафов (хз че ты с ним делать будешь))))
+        self.buffs = []  # Список бафов
         self.debuffs = []
         self.event_flag = ['st']
         self.room = [0, 0]
         self.save = 1  # Сохранение (1 окно)
         self.files()
+        self.fin_gold = 0  # Подсчет золота
         self.select = 1  # Выбранный слот отряда (2 окно)
         self.screen = 1  # Номер экрана (для active_screen())
         self.select_char = ['', '', '']  # Отряд
@@ -944,6 +975,13 @@ class Dota:
             text = font.render(i, True, col)
             screen.blit(text, self.rect)
             self.rect = (rect[0], self.rect[1] + size)
+
+    def get_anim(self):
+        if self.board.plrs[self.board.getplr - 1] != None:
+            if self.board.buttonattacke:
+                self.board.plrs[self.board.getplr - 1].anim('a')
+            else:
+                self.board.plrs[self.board.getplr - 1].anim('u')
 
 
 if __name__ == '__main__':
