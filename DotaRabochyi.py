@@ -149,7 +149,6 @@ class Hero:
         elif self.animation == 'u':
             self.count -= 1
             return "images\\" + self.name + "Ult.png"
-        CLOCK.tick(20)
 
     def stats(self):
         return [self.name, self.standhp, self.hp, self.get_att(), self.ult, self.buff]
@@ -195,7 +194,6 @@ class Fight():
         self.getenem = 0
         self.point = []
         self.getgold = 0
-        self.animated = []
         self.buttonattacke = False
         self.mana = 1
 
@@ -204,6 +202,7 @@ class Fight():
             if self.plrs[self.getplr - 1].name == "BountyHunter":
                 self.getgold += 7
             self.enems[who].damage(self.plrs[self.getplr - 1].get_att())
+            self.plrs[self.getplr - 1].anim('a')
             self.loop()
             self.point = []
             if self.mana < 4:
@@ -211,6 +210,7 @@ class Fight():
         else:
             if self.mana >= self.plrs[self.getplr - 1].ultmana:
                 self.mana -= self.plrs[self.getplr - 1].ultmana
+                self.plrs[self.getplr - 1].anim('u')
                 getattr(self, f'ult_{self.plrs[self.getplr - 1].ult}')(who)
                 self.loop()
                 self.point = []
@@ -230,7 +230,7 @@ class Fight():
                 self.enems[i].damage(self.plrs[who].ult1)
 
     def ult_crit(self, who):
-        self.enems[who].damage(self.plrs[self.getplr].ult1)
+        self.enems[who].damage(self.plrs[self.getplr - 1].ult1)
 
     def ult_shield(self, who):
         self.plrs[who].buff.append(['armor', 2, self.plrs[who].ult2])
@@ -544,9 +544,11 @@ class Dota:
 
                 elif self.screen == 3:
                     if event.type == pygame.MOUSEBUTTONUP:
+                        if 50 < event.pos[0] < 100 and 50 < event.pos[1] < 100:
+                            self.start()
                         if self.room[0] == 10:  # Кнопки передвижения на карте (прикольна)
                             if 960 < event.pos[0] < 1260 and 800 < event.pos[1] < 850:
-                                self.screen = 'f'
+                                self.screen = 5
                         elif self.room[0] % 2 == 1 or (self.room[1] == 2 and self.room[0] % 2 == 0) or self.room[
                             0] == 0:
                             if 960 < event.pos[0] < 1100 and 800 < event.pos[1] < 850:
@@ -581,37 +583,36 @@ class Dota:
                                 if 600 + 200 * i < event.pos[0] < 780 + 200 * i and 500 < event.pos[
                                     1] < 780 and self.board.enems[i] != None:
                                     self.board.clicked(i)
-                                    self.get_anim()
                                     break
                         if 2 in self.board.point:
                             for i in range(3):
                                 if 400 - 200 * i < event.pos[0] < 580 - 200 * i and 500 < event.pos[
                                     1] < 780 and self.board.plrs[i] != None:
                                     self.board.clicked(i)
-                                    self.get_anim()
                                     break
                         if 3 in self.board.point:
                             for i in range(3):
                                 if 400 - 200 * i < event.pos[0] < 580 - 200 * i and 500 < event.pos[
                                     1] < 780 and self.board.plrs[i] != None and i == self.board.getplr - 1:
                                     self.board.clicked(i)
-                                    self.get_anim()
                                     break
 
                         if 1000 < event.pos[0] < 1170 and 780 < event.pos[
-                            1] < 930 and self.board.enems[i] != None:
+                            1] < 930 and self.board.enems != [None, None, None]:
                             self.board.buttonattacke = False
 
                         if 800 < event.pos[0] < 970 and 780 < event.pos[
-                            1] < 930 and self.board.enems[i] != None:
+                            1] < 930 and self.board.enems != [None, None, None]:
                             self.board.buttonattacke = True
 
                     elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and \
                             self.board.enems == [None, None, None]:
                         if self.map[self.room[0] - 1][self.room[1] - 1] == "elite":
                             self.gold_add(self.board.getgold * 3)
+                            self.fin_gold += self.board.getgold * 3
                         else:
                             self.gold_add(self.board.getgold)
+                            self.fin_gold += self.board.getgold
                         self.screen = 3
 
                     elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and \
@@ -926,7 +927,10 @@ class Dota:
             backG_Image = pygame.image.load('images\\ScreenWin.png').convert_alpha()
             backG_rect = backG_Image.get_rect()
             screen.blit(backG_Image, backG_rect)
-            self.print_text(75, str(int(self.gold) + self.board.getgold), 'yellow', (410, 420))
+            if self.map[self.room[0] - 1][self.room[1] - 1] == "elite":
+                self.print_text(75, str(self.board.getgold * 3), 'yellow', (410, 420))
+            else:
+                self.print_text(75, str(self.board.getgold), 'yellow', (410, 420))
 
         else:
             backG_Image = pygame.image.load(self.board.get_map())
@@ -935,7 +939,7 @@ class Dota:
             backG_Image = pygame.image.load('images\\ScreenLose.png').convert_alpha()
             backG_rect = backG_Image.get_rect()
             screen.blit(backG_Image, backG_rect)
-            self.print_text(75, str(int(self.gold) + self.board.getgold), 'yellow', (410, 420))
+            self.print_text(75, str(self.fin_gold), 'yellow', (410, 420))
 
     def boss_screen(self):
         self.fight_screen()
@@ -1039,8 +1043,8 @@ class Dota:
 
     def lvl_up(self, char):  # Изменение уровня
         self.lvl_file = open(f'lvl//lvl{self.save}.txt', mode='w', encoding='utf-8')
-        if self.lvls[char[0]] + 1 != 6:
-            self.lvls[char[0]] += 1
+        if self.lvls[char] + 1 != 6:
+            self.lvls[char] += 1
             self.gold_add(-100)
         for i in self.lvls:
             self.lvl_file.write(str(i))
@@ -1100,13 +1104,6 @@ class Dota:
             text = font.render(i, True, col)
             screen.blit(text, self.rect)
             self.rect = (rect[0], self.rect[1] + size)
-
-    def get_anim(self):
-        if self.board.plrs[self.board.getplr - 1] != None:
-            if self.board.buttonattacke:
-                self.board.plrs[self.board.getplr - 1].anim('a')
-            else:
-                self.board.plrs[self.board.getplr - 1].anim('u')
 
 
 if __name__ == '__main__':
