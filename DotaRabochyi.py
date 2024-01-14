@@ -567,8 +567,8 @@ class Dota:
                                 self.movement()
                         elif self.room[1] == 1:
                             if 960 < event.pos[0] < 1260 and 800 < event.pos[1] < 850:
-                                self.movement()
                                 self.room[0] += 1
+                                self.movement()
                         else:
                             if 960 < event.pos[0] < 1260 and 800 < event.pos[1] < 850:
                                 self.room[0] += 1
